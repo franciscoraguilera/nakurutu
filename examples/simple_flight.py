@@ -813,7 +813,7 @@ def main():
         print(f"  [WARN] Mach-Cd load failed ({e}); using constants off=0.45 on=0.42")
         power_off_drag, power_on_drag = 0.45, 0.42
 
-    # Original mass/inertia/CoM from your design
+    # Original mass/inertia/CoM from the design
     rocket = Rocket(
         radius=0.078,  # m
         mass=13.194,   # kg (without motor)
@@ -850,7 +850,7 @@ def main():
         airfoil=None,
     )
 
-    # Reefing recovery (your areas): drogue at apogee -> main at 500 m on descent
+    # Reefing recovery (our areas): drogue at apogee -> main at 500 m on descent
     print("  [OK] Adding reefing recovery: drogue@apogee -> main@500 m (descent only)")
     drogue_cd_s = 1.012  # reefed (reduced drag)
     rocket.add_parachute(
