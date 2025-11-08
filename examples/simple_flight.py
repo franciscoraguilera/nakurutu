@@ -166,10 +166,10 @@ def generate_interactive_3d_html(flight, timestamp, env):
     Creates an HTML file that can be opened in a browser for full interactivity.
     """
     if not PLOTLY_AVAILABLE:
-        print("\n[WARN] Plotly not available. Skipping interactive 3D HTML.")
+        print("  [WARN] Plotly not available. Skipping interactive 3D HTML.")
         return None
     
-    print("\n[5/5] Generating interactive 3D HTML...")
+    print("  [5/10] Generating interactive 3D HTML...")
     
     try:
         # Extract trajectory data directly as 1D numpy arrays and flatten
@@ -349,12 +349,59 @@ def generate_interactive_3d_html(flight, timestamp, env):
         return None
 
 
+def generate_motor_plots(motor, timestamp):
+    """Generate and save motor visualization plots."""
+    print("  [6/10] Generating motor plots...")
+    try:
+        # Motor representation
+        fig1_path = os.path.join(RESULTS_DIR, f'motor_representation_{timestamp}.png')
+        motor.plots.draw(filename=fig1_path)
+        print(f"    [OK] Motor representation saved")
+        
+        # Thrust curve
+        fig2_path = os.path.join(RESULTS_DIR, f'motor_thrust_curve_{timestamp}.png')
+        motor.plots.thrust(filename=fig2_path)
+        print(f"    [OK] Thrust curve saved")
+        
+        return fig1_path, fig2_path
+    except Exception as e:
+        print(f"    [WARN] Could not generate motor plots: {e}")
+        return None, None
+
+
+def generate_rocket_plots(rocket, timestamp):
+    """Generate and save rocket visualization."""
+    print("  [7/10] Generating rocket schematic...")
+    try:
+        fig_path = os.path.join(RESULTS_DIR, f'rocket_schematic_{timestamp}.png')
+        rocket.draw(filename=fig_path)
+        print(f"    [OK] Rocket schematic saved")
+        return fig_path
+    except Exception as e:
+        print(f"    [WARN] Could not generate rocket schematic: {e}")
+        return None
+
+
+def generate_atmospheric_plots(env, timestamp):
+    """Generate and save atmospheric condition plots."""
+    print("  [8/10] Generating atmospheric plots...")
+    try:
+        # Wind conditions
+        fig1_path = os.path.join(RESULTS_DIR, f'atmospheric_conditions_{timestamp}.png')
+        env.plots.atmospheric_model(filename=fig1_path)
+        print(f"    [OK] Atmospheric conditions saved")
+        return fig1_path
+    except Exception as e:
+        print(f"    [WARN] Could not generate atmospheric plots: {e}")
+        return None
+
+
 def generate_pdf_report(flight, rocket, motor, env, timestamp, motor_params):
     """
     Generate a comprehensive PDF flight report with all graphs and data.
-    Similar to NDRT 2020 style report.
+    Similar to NDRT 2020 style report with motor, rocket, and atmospheric visualizations.
     """
-    print("\n[6/6] Generating comprehensive PDF report...")
+    print("  [9/10] Generating comprehensive PDF report...")
     
     pdf_path = os.path.join(RESULTS_DIR, f'nakurutu_flight_report_{timestamp}.pdf')
     
@@ -408,7 +455,45 @@ Drift Distance: {np.sqrt(flight.x_impact**2 + flight.y_impact**2):.1f} m ({np.sq
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
-            # ========== PAGE 2: ROCKET CONFIGURATION ==========
+            # ========== PAGE 2: MOTOR VISUALIZATION ==========
+            fig = plt.figure(figsize=(8.5, 11))
+            fig.suptitle('MOTOR VISUALIZATION', fontsize=18, weight='bold', y=0.98)
+            
+            gs = gridspec.GridSpec(2, 1, figure=fig, hspace=0.3, height_ratios=[1, 1])
+            
+            # Motor diagram
+            try:
+                ax1 = fig.add_subplot(gs[0, 0])
+                motor.plots.draw(ax=ax1)
+                ax1.set_title('Solid Motor Representation', fontsize=14, weight='bold', pad=10)
+            except Exception as e:
+                ax1 = fig.add_subplot(gs[0, 0])
+                ax1.axis('off')
+                ax1.text(0.5, 0.5, f'Motor diagram unavailable: {e}', ha='center', transform=ax1.transAxes)
+            
+            # Thrust curve
+            try:
+                ax2 = fig.add_subplot(gs[1, 0])
+                time_array = np.linspace(0, motor_params['burn_time'], 100)
+                thrust_array = [motor.thrust(t) for t in time_array]
+                ax2.plot(time_array, thrust_array, 'b-', linewidth=2)
+                ax2.set_xlabel('Time (s)', fontsize=12)
+                ax2.set_ylabel('Thrust (N)', fontsize=12)
+                ax2.set_title('Thrust Curve', fontsize=14, weight='bold', pad=10)
+                ax2.grid(True, alpha=0.3)
+                ax2.axhline(y=motor_params['avgThrust'], color='r', linestyle='--', 
+                          alpha=0.5, label=f"Avg: {motor_params['avgThrust']:.1f} N")
+                ax2.legend(fontsize=10)
+            except Exception as e:
+                ax2 = fig.add_subplot(gs[1, 0])
+                ax2.axis('off')
+                ax2.text(0.5, 0.5, f'Thrust curve unavailable: {e}', ha='center', transform=ax2.transAxes)
+            
+            fig.text(0.95, 0.02, 'Page 2', ha='right', fontsize=9, color='gray')
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+            
+            # ========== PAGE 3: ROCKET CONFIGURATION ==========
             fig = plt.figure(figsize=(8.5, 11))
             fig.suptitle('ROCKET CONFIGURATION', fontsize=18, weight='bold', y=0.98)
             
@@ -472,11 +557,80 @@ REEFING PARACHUTE SYSTEM:
             ax3.text(0.1, 0.4, recovery_text, fontsize=10, fontfamily='monospace',
                     transform=ax3.transAxes, verticalalignment='top')
             
-            fig.text(0.95, 0.02, 'Page 2', ha='right', fontsize=9, color='gray')
+            fig.text(0.95, 0.02, 'Page 3', ha='right', fontsize=9, color='gray')
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
-            # ========== PAGE 3: ALTITUDE & VELOCITY PLOTS ==========
+            # ========== PAGE 4: ROCKET SCHEMATIC & ATMOSPHERIC CONDITIONS ==========
+            fig = plt.figure(figsize=(8.5, 11))
+            fig.suptitle('ROCKET SCHEMATIC & ATMOSPHERIC CONDITIONS', fontsize=16, weight='bold', y=0.98)
+            
+            gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.3, height_ratios=[1.2, 1])
+            
+            # Rocket schematic
+            try:
+                ax1 = fig.add_subplot(gs[0, :])
+                rocket.draw(ax=ax1)
+                ax1.set_title('Rocket Representation', fontsize=14, weight='bold')
+            except Exception as e:
+                ax1 = fig.add_subplot(gs[0, :])
+                ax1.axis('off')
+                ax1.text(0.5, 0.5, f'Rocket schematic unavailable: {e}', ha='center', transform=ax1.transAxes)
+            
+            # Atmospheric conditions - Wind profile
+            try:
+                ax2 = fig.add_subplot(gs[1, 0])
+                altitudes = np.linspace(0, 6000, 50)
+                wind_speeds = []
+                wind_dirs = []
+                for alt in altitudes:
+                    wind_x = env.wind_velocity_x(alt)
+                    wind_y = env.wind_velocity_y(alt)
+                    speed = np.sqrt(wind_x**2 + wind_y**2)
+                    direction = np.degrees(np.arctan2(wind_x, wind_y)) % 360
+                    wind_speeds.append(speed)
+                    wind_dirs.append(direction)
+                
+                ax2_twin = ax2.twiny()
+                ax2.plot(wind_speeds, altitudes, 'orange', linewidth=2, label='Wind Speed')
+                ax2_twin.plot(wind_dirs, altitudes, 'blue', linewidth=2, label='Wind Direction')
+                ax2.set_xlabel('Wind Speed (m/s)', fontsize=11, color='orange')
+                ax2_twin.set_xlabel('Wind Direction (°)', fontsize=11, color='blue')
+                ax2.set_ylabel('Height Above Sea Level (m)', fontsize=11)
+                ax2.grid(True, alpha=0.3)
+                ax2.tick_params(axis='x', labelcolor='orange')
+                ax2_twin.tick_params(axis='x', labelcolor='blue')
+            except Exception as e:
+                ax2 = fig.add_subplot(gs[1, 0])
+                ax2.axis('off')
+                ax2.text(0.5, 0.5, f'Wind data unavailable', ha='center', transform=ax2.transAxes)
+            
+            # Atmospheric conditions - Density & Sound Speed
+            try:
+                ax3 = fig.add_subplot(gs[1, 1])
+                altitudes = np.linspace(0, 6000, 50)
+                densities = [env.density(alt) for alt in altitudes]
+                sound_speeds = [env.speed_of_sound(alt) for alt in altitudes]
+                
+                ax3_twin = ax3.twiny()
+                ax3.plot(densities, altitudes, 'navy', linewidth=2, label='Density')
+                ax3_twin.plot(sound_speeds, altitudes, 'orange', linewidth=2, label='Speed of Sound')
+                ax3.set_xlabel('Density (kg/m³)', fontsize=11, color='navy')
+                ax3_twin.set_xlabel('Speed of Sound (m/s)', fontsize=11, color='orange')
+                ax3.set_ylabel('Height Above Sea Level (m)', fontsize=11)
+                ax3.grid(True, alpha=0.3)
+                ax3.tick_params(axis='x', labelcolor='navy')
+                ax3_twin.tick_params(axis='x', labelcolor='orange')
+            except Exception as e:
+                ax3 = fig.add_subplot(gs[1, 1])
+                ax3.axis('off')
+                ax3.text(0.5, 0.5, f'Atmospheric data unavailable', ha='center', transform=ax3.transAxes)
+            
+            fig.text(0.95, 0.02, 'Page 4', ha='right', fontsize=9, color='gray')
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+            
+            # ========== PAGE 5: ALTITUDE & VELOCITY PLOTS ==========
             fig = plt.figure(figsize=(8.5, 11))
             fig.suptitle('FLIGHT TRAJECTORY - ALTITUDE & VELOCITY', fontsize=16, weight='bold', y=0.98)
             
@@ -523,11 +677,11 @@ REEFING PARACHUTE SYSTEM:
             ax3.set_title('Vertical Velocity', fontsize=13, weight='bold')
             ax3.grid(True, alpha=0.3)
             
-            fig.text(0.95, 0.02, 'Page 3', ha='right', fontsize=9, color='gray')
+            fig.text(0.95, 0.02, 'Page 5', ha='right', fontsize=9, color='gray')
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
-            # ========== PAGE 4: ACCELERATION & MACH NUMBER ==========
+            # ========== PAGE 6: ACCELERATION & MACH NUMBER ==========
             fig = plt.figure(figsize=(8.5, 11))
             fig.suptitle('FLIGHT DYNAMICS - ACCELERATION & MACH', fontsize=16, weight='bold', y=0.98)
             
@@ -578,11 +732,11 @@ REEFING PARACHUTE SYSTEM:
             except:
                 ax3.text(0.5, 0.5, 'Drag data not available', ha='center', transform=ax3.transAxes)
             
-            fig.text(0.95, 0.02, 'Page 4', ha='right', fontsize=9, color='gray')
+            fig.text(0.95, 0.02, 'Page 6', ha='right', fontsize=9, color='gray')
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
-            # ========== PAGE 5: 3D TRAJECTORY ==========
+            # ========== PAGE 7: 3D TRAJECTORY ==========
             fig = plt.figure(figsize=(8.5, 11))
             fig.suptitle('3D FLIGHT TRAJECTORY', fontsize=16, weight='bold', y=0.96)
             
@@ -653,11 +807,11 @@ Landing:     ({flight.x_impact:.1f}, {flight.y_impact:.1f}) m
                      bbox=dict(boxstyle='round', facecolor='#F5F5DC', alpha=0.9, 
                               edgecolor='#8B4513', linewidth=2))
             
-            fig.text(0.95, 0.02, 'Page 5', ha='right', fontsize=9, color='gray')
+            fig.text(0.95, 0.02, 'Page 7', ha='right', fontsize=9, color='gray')
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
-            # ========== PAGE 6: SUMMARY TABLE ==========
+            # ========== PAGE 8: SUMMARY TABLE ==========
             fig = plt.figure(figsize=(8.5, 11))
             fig.suptitle('FLIGHT DATA SUMMARY', fontsize=18, weight='bold', y=0.96)
             
@@ -714,7 +868,7 @@ Landing:     ({flight.x_impact:.1f}, {flight.y_impact:.1f}) m
                         cell.set_facecolor('#4CAF50')
                         cell.set_text_props(weight='bold', color='white', fontsize=11)
             
-            fig.text(0.95, 0.02, 'Page 6', ha='right', fontsize=9, color='gray')
+            fig.text(0.95, 0.02, 'Page 8', ha='right', fontsize=9, color='gray')
             pdf.savefig(fig, bbox_inches='tight')
             plt.close(fig)
             
@@ -727,7 +881,7 @@ Landing:     ({flight.x_impact:.1f}, {flight.y_impact:.1f}) m
             d['CreationDate'] = datetime.now()
         
         print(f"  [OK] PDF report saved: {pdf_path}")
-        print(f"       Report contains 6 pages with comprehensive flight data")
+        print(f"       Report contains 8 pages with comprehensive flight data")
         return pdf_path
         
     except Exception as e:
@@ -788,7 +942,7 @@ def main():
         throat_radius=0.022,
         interpolation_method="linear",
         nozzle_position=0.0,
-        coordinate_system_orientation="combustion_chamber_to_nozzle",
+        coordinate_system_orientation="nozzle_to_combustion_chamber",
     )
     print("  [OK] Motor built")
 
@@ -825,12 +979,11 @@ def main():
     )
 
     # Original placements (nose_to_tail: 0 at nose tip, + toward tail)
-    # Using actual measured positions:
-    # - Motor center: 2.20 m from nose tip
-    # - Fin leading edge: 2.06 m from nose tip
-    # - Nose base: 0.56 m from nose tip
-    rocket.add_motor(motor, position=2.20)  # Actual motor center position
-
+    # Rocket body length approximately 2.60 m
+    # Motor nozzle extends 10 cm past the tail, so motor positioned at 2.70 m
+    # Fin leading edge positioned near tail section at 2.30 m
+    # Nose base at 0.56 m from nose tip
+    
     rocket.add_nose(
         length=0.560,
         kind="lvhaack",
@@ -844,11 +997,14 @@ def main():
         root_chord=0.361,
         tip_chord=0.060,
         span=0.156,
-        position=2.060,
+        position=2.30,       # Moved closer to tail
         sweep_angle=43.40,   # degrees (planform geometry)
         cant_angle=0.0,      # keep <= 2.0 if you want intentional slow roll
         airfoil=None,
     )
+    
+    # Motor positioned so nozzle extends 10 cm outside the rocket tail
+    rocket.add_motor(motor, position=2.70)
 
     # Reefing recovery (our areas): drogue at apogee -> main at 500 m on descent
     print("  [OK] Adding reefing recovery: drogue@apogee -> main@500 m (descent only)")
@@ -940,27 +1096,42 @@ def main():
         except Exception:
             print("  Impact Vel:    N/A")
 
+        # Save basic outputs
+        print("\nGenerating output files...")
         # Save KML via non-deprecated path when available
         kml_path = os.path.join(RESULTS_DIR, "nakurutu_trajectory.kml")
         export_kml_compat(flight, file_name=kml_path, extrude=True, altitude_mode="absolute")
-        print(f"Saved: {kml_path}")
+        print(f"  [OK] KML saved: {kml_path}")
 
         # 3D trajectory image
         png_path = os.path.join(RESULTS_DIR, "nakurutu_trajectory_3d.png")
         flight.plots.trajectory_3d(filename=png_path)
-        print(f"Saved: {png_path}\n")
+        print(f"  [OK] 3D trajectory PNG saved: {png_path}\n")
         
+        # Generate advanced visualizations and reports
+        print("Generating advanced visualizations...")
         # Generate timestamp for report files
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Generate interactive 3D HTML
         html_path = generate_interactive_3d_html(flight, timestamp, env)
         
+        # Generate motor visualization plots
+        motor_repr_path, motor_thrust_path = generate_motor_plots(motor, timestamp)
+        
+        # Generate rocket schematic
+        rocket_schematic_path = generate_rocket_plots(rocket, timestamp)
+        
+        # Generate atmospheric plots
+        atmospheric_path = generate_atmospheric_plots(env, timestamp)
+        
         # Generate comprehensive PDF report
         pdf_path = generate_pdf_report(flight, rocket, motor, env, timestamp, mp)
         
+        print("  [10/10] All visualizations complete!\n")
+        
         # Final summary
-        print("\n" + "=" * 60)
+        print("=" * 60)
         print("ALL OUTPUTS GENERATED")
         print("=" * 60)
         print("\nGenerated Files:")
@@ -968,8 +1139,16 @@ def main():
         print(f"  2. 3D Trajectory PNG:  {png_path}")
         if html_path:
             print(f"  3. Interactive 3D HTML: {html_path}")
+        if motor_repr_path:
+            print(f"  4. Motor Representation: {motor_repr_path}")
+        if motor_thrust_path:
+            print(f"  5. Motor Thrust Curve: {motor_thrust_path}")
+        if rocket_schematic_path:
+            print(f"  6. Rocket Schematic: {rocket_schematic_path}")
+        if atmospheric_path:
+            print(f"  7. Atmospheric Conditions: {atmospheric_path}")
         if pdf_path:
-            print(f"  4. Comprehensive PDF Report: {pdf_path}")
+            print(f"  8. Comprehensive PDF Report (8 pages): {pdf_path}")
         print("\n" + "=" * 60)
 
     except Exception as e:
