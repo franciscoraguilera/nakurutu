@@ -160,7 +160,7 @@ def export_kml_compat(flight, file_name, **kwargs):
         print(f"File  {os.path.abspath(file_name)}  saved with success!")
 
 
-def generate_interactive_3d_html(flight, timestamp, env):
+def generate_interactive_3d_html(flight, sim_folder, timestamp, env):
     """
     Generate an interactive 3D trajectory plot using Plotly.
     Creates an HTML file that can be opened in a browser for full interactivity.
@@ -319,7 +319,7 @@ def generate_interactive_3d_html(flight, timestamp, env):
         )
         
         # Save to HTML file
-        html_path = os.path.join(RESULTS_DIR, f'nakurutu_interactive_3d_{timestamp}.html')
+        html_path = os.path.join(sim_folder, f'nakurutu_interactive_3d_{timestamp}.html')
         fig.write_html(html_path, config={
             'toImageButtonOptions': {
                 'format': 'png',
@@ -349,17 +349,17 @@ def generate_interactive_3d_html(flight, timestamp, env):
         return None
 
 
-def generate_motor_plots(motor, timestamp):
+def generate_motor_plots(motor, sim_folder, timestamp):
     """Generate and save motor visualization plots."""
     print("  [6/10] Generating motor plots...")
     try:
         # Motor representation
-        fig1_path = os.path.join(RESULTS_DIR, f'motor_representation_{timestamp}.png')
+        fig1_path = os.path.join(sim_folder, f'motor_representation_{timestamp}.png')
         motor.plots.draw(filename=fig1_path)
         print(f"    [OK] Motor representation saved")
         
         # Thrust curve
-        fig2_path = os.path.join(RESULTS_DIR, f'motor_thrust_curve_{timestamp}.png')
+        fig2_path = os.path.join(sim_folder, f'motor_thrust_curve_{timestamp}.png')
         motor.plots.thrust(filename=fig2_path)
         print(f"    [OK] Thrust curve saved")
         
@@ -369,11 +369,11 @@ def generate_motor_plots(motor, timestamp):
         return None, None
 
 
-def generate_rocket_plots(rocket, timestamp):
+def generate_rocket_plots(rocket, sim_folder, timestamp):
     """Generate and save rocket visualization."""
     print("  [7/10] Generating rocket schematic...")
     try:
-        fig_path = os.path.join(RESULTS_DIR, f'rocket_schematic_{timestamp}.png')
+        fig_path = os.path.join(sim_folder, f'rocket_schematic_{timestamp}.png')
         rocket.draw(filename=fig_path)
         print(f"    [OK] Rocket schematic saved")
         return fig_path
@@ -382,12 +382,12 @@ def generate_rocket_plots(rocket, timestamp):
         return None
 
 
-def generate_atmospheric_plots(env, timestamp):
+def generate_atmospheric_plots(env, sim_folder, timestamp):
     """Generate and save atmospheric condition plots."""
     print("  [8/10] Generating atmospheric plots...")
     try:
         # Wind conditions
-        fig1_path = os.path.join(RESULTS_DIR, f'atmospheric_conditions_{timestamp}.png')
+        fig1_path = os.path.join(sim_folder, f'atmospheric_conditions_{timestamp}.png')
         env.plots.atmospheric_model(filename=fig1_path)
         print(f"    [OK] Atmospheric conditions saved")
         return fig1_path
@@ -396,14 +396,14 @@ def generate_atmospheric_plots(env, timestamp):
         return None
 
 
-def generate_pdf_report(flight, rocket, motor, env, timestamp, motor_params):
+def generate_pdf_report(flight, rocket, motor, env, sim_folder, timestamp, motor_params):
     """
     Generate a comprehensive PDF flight report with all graphs and data.
     Similar to NDRT 2020 style report with motor, rocket, and atmospheric visualizations.
     """
     print("  [9/10] Generating comprehensive PDF report...")
     
-    pdf_path = os.path.join(RESULTS_DIR, f'nakurutu_flight_report_{timestamp}.pdf')
+    pdf_path = os.path.join(sim_folder, f'nakurutu_flight_report_{timestamp}.pdf')
     
     try:
         plt.style.use('seaborn-v0_8-whitegrid')
@@ -1096,37 +1096,41 @@ def main():
         except Exception:
             print("  Impact Vel:    N/A")
 
+        # Create simulation folder with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sim_folder = os.path.join(RESULTS_DIR, f"simulation_{timestamp}")
+        os.makedirs(sim_folder, exist_ok=True)
+        print(f"\nCreated simulation folder: {sim_folder}")
+        
         # Save basic outputs
         print("\nGenerating output files...")
         # Save KML via non-deprecated path when available
-        kml_path = os.path.join(RESULTS_DIR, "nakurutu_trajectory.kml")
+        kml_path = os.path.join(sim_folder, f"nakurutu_trajectory_{timestamp}.kml")
         export_kml_compat(flight, file_name=kml_path, extrude=True, altitude_mode="absolute")
-        print(f"  [OK] KML saved: {kml_path}")
+        print(f"  [OK] KML saved")
 
         # 3D trajectory image
-        png_path = os.path.join(RESULTS_DIR, "nakurutu_trajectory_3d.png")
+        png_path = os.path.join(sim_folder, f"nakurutu_trajectory_3d_{timestamp}.png")
         flight.plots.trajectory_3d(filename=png_path)
-        print(f"  [OK] 3D trajectory PNG saved: {png_path}\n")
+        print(f"  [OK] 3D trajectory PNG saved\n")
         
         # Generate advanced visualizations and reports
         print("Generating advanced visualizations...")
-        # Generate timestamp for report files
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Generate interactive 3D HTML
-        html_path = generate_interactive_3d_html(flight, timestamp, env)
+        html_path = generate_interactive_3d_html(flight, sim_folder, timestamp, env)
         
         # Generate motor visualization plots
-        motor_repr_path, motor_thrust_path = generate_motor_plots(motor, timestamp)
+        motor_repr_path, motor_thrust_path = generate_motor_plots(motor, sim_folder, timestamp)
         
         # Generate rocket schematic
-        rocket_schematic_path = generate_rocket_plots(rocket, timestamp)
+        rocket_schematic_path = generate_rocket_plots(rocket, sim_folder, timestamp)
         
         # Generate atmospheric plots
-        atmospheric_path = generate_atmospheric_plots(env, timestamp)
+        atmospheric_path = generate_atmospheric_plots(env, sim_folder, timestamp)
         
         # Generate comprehensive PDF report
-        pdf_path = generate_pdf_report(flight, rocket, motor, env, timestamp, mp)
+        pdf_path = generate_pdf_report(flight, rocket, motor, env, sim_folder, timestamp, mp)
         
         print("  [10/10] All visualizations complete!\n")
         
@@ -1134,21 +1138,22 @@ def main():
         print("=" * 60)
         print("ALL OUTPUTS GENERATED")
         print("=" * 60)
+        print(f"\nSimulation Folder: {sim_folder}")
         print("\nGenerated Files:")
-        print(f"  1. KML (Google Earth): {kml_path}")
-        print(f"  2. 3D Trajectory PNG:  {png_path}")
+        print(f"  1. KML (Google Earth): nakurutu_trajectory_{timestamp}.kml")
+        print(f"  2. 3D Trajectory PNG:  nakurutu_trajectory_3d_{timestamp}.png")
         if html_path:
-            print(f"  3. Interactive 3D HTML: {html_path}")
+            print(f"  3. Interactive 3D HTML: nakurutu_interactive_3d_{timestamp}.html")
         if motor_repr_path:
-            print(f"  4. Motor Representation: {motor_repr_path}")
+            print(f"  4. Motor Representation: motor_representation_{timestamp}.png")
         if motor_thrust_path:
-            print(f"  5. Motor Thrust Curve: {motor_thrust_path}")
+            print(f"  5. Motor Thrust Curve: motor_thrust_curve_{timestamp}.png")
         if rocket_schematic_path:
-            print(f"  6. Rocket Schematic: {rocket_schematic_path}")
+            print(f"  6. Rocket Schematic: rocket_schematic_{timestamp}.png")
         if atmospheric_path:
-            print(f"  7. Atmospheric Conditions: {atmospheric_path}")
+            print(f"  7. Atmospheric Conditions: atmospheric_conditions_{timestamp}.png")
         if pdf_path:
-            print(f"  8. Comprehensive PDF Report (8 pages): {pdf_path}")
+            print(f"  8. Comprehensive PDF Report (8 pages): nakurutu_flight_report_{timestamp}.pdf")
         print("\n" + "=" * 60)
 
     except Exception as e:
